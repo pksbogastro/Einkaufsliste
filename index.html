@@ -12,17 +12,18 @@
         :root { --primary: #2196F3; --plan: #ff9800; --buy: #4CAF50; --danger: #f44336; }
         body { font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 10px; padding-bottom: 80px; text-align: center; }
         .header { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; position: sticky; top: 10px; z-index: 100; }
-        .card { background: white; border-radius: 20px; padding: 15px; margin-bottom: 15px; display: flex; align-items: center; position: relative; box-shadow: 0 2px 5px rgba(0,0,0,0.05); transition: 0.2s; }
+        .card { background: white; border-radius: 20px; padding: 15px; margin-bottom: 15px; display: flex; align-items: center; position: relative; box-shadow: 0 2px 5px rgba(0,0,0,0.05); transition: 0.2s; border: 2px solid transparent; }
         
         /* Nur im Einkaufsmodus ausgrauen */
-        .einkauf-active .card.gekauft { opacity: 0.3; filter: grayscale(100%); text-decoration: line-through; }
+        .einkauf-active .card.gekauft { opacity: 0.3; filter: grayscale(100%); }
+        .einkauf-active .card.gekauft .info h2 { text-decoration: line-through; }
         
         .bild-container { width: 100px; height: 100px; border-radius: 15px; overflow: hidden; margin-right: 15px; flex-shrink: 0; border: 1px solid #ddd; background: #eee; position: relative; }
         .bild { width: 100%; height: 100%; object-fit: cover; }
         .upload-overlay { position: absolute; bottom: 0; background: rgba(0,0,0,0.5); color: white; width: 100%; font-size: 10px; padding: 2px 0; }
         
         .info { flex-grow: 1; text-align: left; }
-        .info h2 { margin: 0; font-size: 1.2rem; }
+        .info h2 { margin: 0; font-size: 1.2rem; color: #333; }
         .anzahl-box { font-size: 1.1rem; font-weight: bold; color: var(--primary); }
         
         .delete-btn { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; z-index: 10; }
@@ -32,9 +33,11 @@
         .btn-add { background: var(--buy); }
         .btn-reset { background: var(--plan); }
         
-        .hidden { display: none; }
+        .hidden { display: none !important; }
         #fs-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; }
         #fs-overlay img { max-width: 90%; max-height: 90%; border: 3px solid white; }
+
+        input { border: 1px solid #ccc; padding: 5px; border-radius: 5px; }
     </style>
 </head>
 <body class="planung-active">
@@ -50,7 +53,6 @@
 <div id="liste">Lade Liste...</div>
 
 <input type="file" id="fileInput" accept="image/*" style="display:none">
-
 <div id="fs-overlay" onclick="this.style.display='none'"><img id="fs-img" src=""></div>
 
 <script>
@@ -60,115 +62,5 @@
       projectId: "einkaufen-bpo1",
       storageBucket: "einkaufen-bpo1.firebasestorage.app",
       messagingSenderId: "372799563406",
-      appId: "1:372799563406:web:355b3554dd3d065d614bdf"
-    };
-
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-    let currentMode = 'planung';
-    let currentUploadId = null;
-
-    function toggleMode() {
-        currentMode = (currentMode === 'planung') ? 'einkauf' : 'planung';
-        document.body.className = currentMode + '-active';
-        document.getElementById('modeBtn').innerText = currentMode === 'planung' ? 'Wechseln zu: EINKAUFEN' : 'Wechseln zu: PLANUNG';
-        document.getElementById('planerControls').classList.toggle('hidden', currentMode === 'einkauf');
-        // Liste wird durch onSnapshot automatisch neu gezeichnet
-    }
-
-    db.collection("artikel").onSnapshot((snapshot) => {
-        const listDiv = document.getElementById('liste');
-        listDiv.innerHTML = '';
-        let items = [];
-        snapshot.forEach(doc => items.push({id: doc.id, ...doc.data()}));
-        items.sort((a,b) => a.name.localeCompare(b.name));
-
-        items.forEach(item => {
-            // Im Einkaufsmodus nur Artikel > 0 zeigen
-            if (currentMode === 'einkauf' && (item.anzahl <= 0 || !item.anzahl)) return;
-
-            const card = document.createElement('div');
-            card.className = `card ${item.gekauft ? 'gekauft' : ''}`;
-            
-            card.onclick = () => { 
-                if(currentMode === 'einkauf') {
-                    db.collection("artikel").doc(item.id).update({gekauft: !item.gekauft});
-                }
-            };
-
-            card.innerHTML = `
-                ${currentMode === 'planung' ? `<div class="delete-btn" onclick="event.stopPropagation(); deleteItem('${item.id}')">✕</div>` : ''}
-                <div class="bild-container" onclick="handleImageClick(event, '${item.id}')">
-                    <img src="${item.bildUrl || 'https://via.placeholder.com/150'}" class="bild">
-                    ${currentMode === 'planung' ? '<div class="upload-overlay">Ändern</div>' : ''}
-                </div>
-                <div class="info">
-                    ${currentMode === 'planung' 
-                        ? `<strong>Name:</strong><br><input style="width:90%; font-size:16px" value="${item.name}" onchange="updateField('${item.id}', 'name', this.value)">
-                           <br><strong>Menge:</strong><br><input type="number" style="width:60px; font-size:16px" value="${item.anzahl || 0}" onchange="updateField('${item.id}', 'anzahl', parseInt(this.value))">`
-                        : `<h2>${item.name}</h2><div class="anzahl-box">${item.anzahl} Stück</div>`
-                    }
-                </div>
-            `;
-            listDiv.appendChild(card);
-        });
-    });
-
-    function handleImageClick(e, id) {
-        e.stopPropagation();
-        if(currentMode === 'planung') {
-            currentUploadId = id;
-            document.getElementById('fileInput').click();
-        } else {
-            const src = e.currentTarget.querySelector('img').src;
-            if(src && !src.includes('placeholder')) {
-                document.getElementById('fs-img').src = src;
-                document.getElementById('fs-overlay').style.display = 'flex';
-            }
-        }
-    }
-
-    // Bild-Upload Logik
-    document.getElementById('fileInput').onchange = function(e) {
-        const file = e.target.files[0];
-        if(!file || !currentUploadId) return;
-
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            const img = new Image();
-            img.onload = function() {
-                // Bild verkleinern (Canvas)
-                const canvas = document.createElement('canvas');
-                const max = 300;
-                let w = img.width, h = img.height;
-                if (w > h) { if (w > max) { h *= max / w; w = max; } }
-                else { if (h > max) { w *= max / h; h = max; } }
-                canvas.width = w; canvas.height = h;
-                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                
-                // Als Base64 Text in Firebase speichern
-                const base64 = canvas.toDataURL('image/jpeg', 0.7);
-                db.collection("artikel").doc(currentUploadId).update({ bildUrl: base64 });
-            };
-            img.src = event.target.result;
-        };
-        reader.readAsDataURL(file);
-    };
-
-    function updateField(id, field, val) { db.collection("artikel").doc(id).update({[field]: val}); }
-    function deleteItem(id) { if(confirm("Wirklich löschen?")) db.collection("artikel").doc(id).delete(); }
-    function resetAll() { if(confirm("Alle Anzahlen auf 0?")) db.collection("artikel").get().then(s => s.forEach(d => d.ref.update({anzahl: 0, gekauft: false}))); }
-    
-    function addNewItem() { 
-        const n = prompt("Name des Artikels?"); 
-        if(n) {
-            db.collection("artikel").add({name: n, anzahl: 1, gekauft: false, bildUrl: ""}).then(doc => {
-                // Sofort Upload für das neue Item triggern
-                currentUploadId = doc.id;
-                document.getElementById('fileInput').click();
-            });
-        }
-    }
-</script>
-</body>
-</html>
+      appId: "1:37
+          
