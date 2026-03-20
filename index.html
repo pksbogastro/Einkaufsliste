@@ -92,5 +92,58 @@
         allItems.forEach(item => { if(item.listName) listNames.add(item.listName); });
         const sortedLists = Array.from(listNames).sort();
 
-        const tabsDiv = document.getElementById('listTabs
-                                                
+        const tabsDiv = document.getElementById('listTabs');
+        tabsDiv.innerHTML = '';
+        sortedLists.forEach(ln => {
+            const btn = document.createElement('button');
+            btn.className = `list-tab ${currentList === ln ? 'active' : ''}`;
+            btn.innerText = ln;
+            btn.onclick = () => { 
+                // NEU: Nur wenn man im Planungsmodus auf den blauen Tab klickt
+                if (currentList === ln && currentMode === 'planung' && ln !== 'Standard') {
+                    const newN = prompt("Liste '" + ln + "' umbenennen in:", ln);
+                    if(newN && newN !== ln) {
+                        allItems.filter(it => (it.listName || 'Standard') === ln).forEach(it => {
+                            db.collection("artikel").doc(it.id).update({listName: newN});
+                        });
+                        currentList = newN; localStorage.setItem('activeList', newN);
+                    }
+                } else {
+                    currentList = ln; localStorage.setItem('activeList', ln); renderUI();
+                }
+            };
+            tabsDiv.appendChild(btn);
+        });
+
+        const listDiv = document.getElementById('liste');
+        listDiv.innerHTML = '';
+        
+        const filtered = allItems.filter(it => (it.listName || 'Standard') === currentList);
+        filtered.sort((a,b) => (a.name || "").localeCompare(b.name || ""));
+
+        if(filtered.length === 0) {
+            listDiv.innerHTML = "<p style='padding:20px;'>Keine Artikel gefunden.</p>";
+            return;
+        }
+
+        filtered.forEach(item => {
+            const anzahl = parseInt(item.anzahl) || 0;
+            if (currentMode === 'einkauf' && anzahl <= 0) return;
+
+            const card = document.createElement('div');
+            card.className = `card ${item.gekauft ? 'gekauft' : ''}`;
+            card.onclick = () => { if(currentMode === 'einkauf') db.collection("artikel").doc(item.id).update({gekauft: !item.gekauft}); };
+
+            let copyOptions = sortedLists.map(l => `<option value="${l}">${l}</option>`).join('');
+
+            card.innerHTML = `
+                ${currentMode === 'planung' ? `<div class="delete-btn" onclick="event.stopPropagation(); deleteItem('${item.id}')">✕</div>` : ''}
+                <div class="bild-container" onclick="handleImageClick(event, '${item.id}')">
+                    <img src="${item.bildUrl || 'https://via.placeholder.com/150'}" class="bild">
+                </div>
+                <div class="info">
+                    ${currentMode === 'planung' 
+                        ? `<input style="font-weight:bold;" value="${item.name || ''}" onchange="updateField('${item.id}', 'name', this.value)">
+                           <div style="margin-top:8px">Menge: <input type="number" style="width:50px" value="${anzahl}" onchange="updateField('${item.id}', 'anzahl', parseInt(this.value))"></div>
+                           <select class="copy-select" onchange="
+                           
