@@ -9,50 +9,56 @@
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-firestore-compat.js"></script>
 
     <style>
-        :root { --primary: #2196F3; --plan: #ff9800; --buy: #4CAF50; --danger: #f44336; }
+        :root { --primary: #2196F3; --plan: #ff9800; --buy: #4CAF50; --danger: #f44336; --gray: #607d8b; }
         body { font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 10px; padding-bottom: 80px; text-align: center; }
         .header { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 15px; position: sticky; top: 10px; z-index: 100; }
-        .list-selector { display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; padding: 5px 0; }
+        .list-selector { display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; padding: 5px 0; -webkit-overflow-scrolling: touch; }
         .list-tab { padding: 10px 18px; background: #e0e0e0; border-radius: 20px; font-size: 14px; white-space: nowrap; cursor: pointer; border: none; flex-shrink: 0; }
         .list-tab.active { background: var(--primary); color: white; font-weight: bold; }
+        
         .card { background: white; border-radius: 20px; padding: 15px; margin-bottom: 15px; display: flex; align-items: center; position: relative; box-shadow: 0 4px 8px rgba(0,0,0,0.08); }
         .einkauf-active .card.gekauft { opacity: 0.2; filter: grayscale(100%); }
         .einkauf-active .card.gekauft h2 { text-decoration: line-through; }
-        .bild-container { width: 110px; height: 110px; border-radius: 15px; overflow: hidden; margin-right: 15px; flex-shrink: 0; border: 1px solid #ddd; background: #fff; position: relative; }
+        
+        .bild-container { width: 110px; height: 110px; border-radius: 15px; overflow: hidden; margin-right: 15px; flex-shrink: 0; border: 1px solid #ddd; background: #fff; }
         .bild { width: 100%; height: 100%; object-fit: cover; }
         .info { flex-grow: 1; text-align: left; }
         .info h2 { margin: 0; font-size: 1.1rem; color: #222; }
-        .anzahl-box { font-size: 1.1rem; font-weight: bold; color: var(--primary); }
+        
         .delete-btn { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; z-index: 10; }
+        
         .btn { padding: 12px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; color: white; margin: 5px 0; width: 100%; }
-        .btn-mode { background: var(--primary); font-size: 1.1rem; }
+        .btn-sm { padding: 6px 10px; font-size: 11px; margin: 2px; width: auto; flex: 1; }
+        
         .copy-select { font-size: 12px; padding: 5px; margin-top: 8px; width: 100%; border-radius: 5px; border: 1px solid #ccc; background: #fff; }
         .hidden { display: none !important; }
         #fs-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 1000; justify-content: center; align-items: center; }
         #fs-overlay img { max-width: 95%; max-height: 95%; border: 2px solid white; border-radius: 10px; }
-        input { border: 1px solid #ccc; padding: 8px; border-radius: 8px; background: #f9f9f9; font-size: 16px; width: 80%; }
+        input { border: 1px solid #ccc; padding: 8px; border-radius: 8px; background: #f9f9f9; font-size: 16px; width: 85%; }
     </style>
 </head>
 <body class="planung-active">
 
 <div class="header">
     <div class="list-selector" id="listTabs"></div>
-    <button class="btn btn-mode" id="modeBtn" onclick="toggleMode()">MODUS: PLANUNG</button>
+    <button class="btn" style="background:var(--primary)" id="modeBtn" onclick="toggleMode()">MODUS: PLANUNG</button>
+    
     <div id="planerControls">
-        <div style="display:flex; gap:8px;">
-            <button class="btn" style="background:var(--buy)" onclick="addNewItem()">+ Artikel</button>
-            <button class="btn" style="background:#607d8b" onclick="addNewList()">+ Neue Liste</button>
+        <button class="btn" style="background:var(--buy)" onclick="addNewItem()">+ Artikel hinzufügen</button>
+        <div style="display:flex; justify-content: space-between;">
+            <button class="btn btn-sm" style="background:var(--gray)" onclick="addNewList()">+ Neue Liste</button>
+            <button class="btn btn-sm" style="background:var(--plan)" onclick="renameCurrentList()">Name ändern</button>
+            <button class="btn btn-sm" style="background:var(--danger)" onclick="deleteCurrentList()">Liste löschen</button>
         </div>
     </div>
 </div>
 
-<div id="liste">Verbindung wird geprüft...</div>
+<div id="liste">Lade Daten...</div>
 
 <input type="file" id="fileInput" accept="image/*" style="display:none">
 <div id="fs-overlay" onclick="this.style.display='none'"><img id="fs-img" src=""></div>
 
 <script>
-    // DEINE FIREBASE KONFIGURATION
     const firebaseConfig = {
       apiKey: "AIzaSyBFwrIf19q-yMSzcDkBRaLHPGMTwZjMay8",
       authDomain: "einkaufen-bpo1.firebaseapp.com",
@@ -78,19 +84,13 @@
         renderUI();
     }
 
-    // EINFACHER SNAPSHOT OHNE QUERY-FILTER (Verhindert Index-Fehler)
     db.collection("artikel").onSnapshot((snapshot) => {
         allItems = [];
-        snapshot.forEach(doc => {
-            allItems.push({id: doc.id, ...doc.data()});
-        });
+        snapshot.forEach(doc => allItems.push({id: doc.id, ...doc.data()}));
         renderUI();
-    }, (error) => {
-        document.getElementById('liste').innerText = "Firebase Fehler: " + error.message;
     });
 
     function renderUI() {
-        // Liste der Tabs erstellen
         const listNames = new Set(['Standard']);
         allItems.forEach(item => { if(item.listName) listNames.add(item.listName); });
         const sortedLists = Array.from(listNames).sort();
@@ -107,13 +107,11 @@
 
         const listDiv = document.getElementById('liste');
         listDiv.innerHTML = '';
-        
-        // Filterung und Sortierung im Browser statt in der Datenbank
         const filtered = allItems.filter(it => (it.listName || 'Standard') === currentList);
         filtered.sort((a,b) => (a.name || "").localeCompare(b.name || ""));
 
         if(filtered.length === 0) {
-            listDiv.innerHTML = "<p style='padding:20px;'>Keine Artikel gefunden.</p>";
+            listDiv.innerHTML = "<p style='padding:20px;'>Keine Artikel in dieser Liste.</p>";
             return;
         }
 
@@ -139,57 +137,42 @@
                            <select class="copy-select" onchange="copyItem('${item.id}', this.value); this.value=''">
                                <option value="">Kopieren nach...</option>${copyOptions}
                            </select>`
-                        : `<h2>${item.name}</h2><div class="anzahl-box">${anzahl} Stück</div>`
+                        : `<h2>${item.name}</h2><div style="color:var(--primary); font-weight:bold;">${anzahl} Stück</div>`
                     }
                 </div>`;
             listDiv.appendChild(card);
         });
     }
 
+    function renameCurrentList() {
+        if(currentList === 'Standard') return alert("Die Standard-Liste kann nicht umbenannt werden.");
+        const newName = prompt("Neuer Name für die Liste '" + currentList + "':");
+        if(newName && newName !== currentList) {
+            const batch = db.batch();
+            allItems.filter(it => it.listName === currentList).forEach(it => {
+                batch.update(db.collection("artikel").doc(it.id), {listName: newName});
+            });
+            batch.commit().then(() => {
+                currentList = newName;
+                localStorage.setItem('activeList', newName);
+            });
+        }
+    }
+
+    function deleteCurrentList() {
+        if(currentList === 'Standard') return alert("Die Standard-Liste kann nicht gelöscht werden.");
+        if(confirm("ACHTUNG: Die komplette Liste '" + currentList + "' und ALLE darin enthaltenen Artikel werden gelöscht. Fortfahren?")) {
+            const batch = db.batch();
+            allItems.filter(it => it.listName === currentList).forEach(it => {
+                batch.delete(db.collection("artikel").doc(it.id));
+            });
+            batch.commit().then(() => {
+                currentList = 'Standard';
+                localStorage.setItem('activeList', 'Standard');
+            });
+        }
+    }
+
     function copyItem(id, targetList) {
-        if(!targetList || targetList === currentList) return;
-        const item = allItems.find(it => it.id === id);
-        if(item) {
-            const newItem = {...item, listName: targetList, gekauft: false};
-            delete newItem.id;
-            db.collection("artikel").add(newItem);
-        }
-    }
-
-    function handleImageClick(e, id) {
-        e.stopPropagation();
-        if(currentMode === 'planung') { currentUploadId = id; document.getElementById('fileInput').click(); }
-        else {
-            const src = e.currentTarget.querySelector('img').src;
-            if(!src.includes('placeholder')) { document.getElementById('fs-img').src = src; document.getElementById('fs-overlay').style.display = 'flex'; }
-        }
-    }
-
-    document.getElementById('fileInput').onchange = function(e) {
-        const file = e.target.files[0];
-        if(!file || !currentUploadId) return;
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            const img = new Image();
-            img.onload = function() {
-                const canvas = document.createElement('canvas');
-                const max = 800;
-                let w = img.width, h = img.height;
-                if (w > h) { if (w > max) { h *= max / w; w = max; } }
-                else { if (h > max) { w *= max / h; h = max; } }
-                canvas.width = w; canvas.height = h;
-                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                db.collection("artikel").doc(currentUploadId).update({ bildUrl: canvas.toDataURL('image/jpeg', 0.8) });
-            };
-            img.src = event.target.result;
-        };
-        reader.readAsDataURL(file);
-    };
-
-    function updateField(id, field, val) { db.collection("artikel").doc(id).update({[field]: val}); }
-    function deleteItem(id) { if(confirm("Löschen?")) db.collection("artikel").doc(id).delete(); }
-    function addNewItem() { const n = prompt("Name:"); if(n) db.collection("artikel").add({name: n, anzahl: 1, gekauft: false, bildUrl: "", listName: currentList}); }
-    function addNewList() { const n = prompt("Name der neuen Liste:"); if(n) { currentList = n; localStorage.setItem('activeList', n); addNewItem(); } }
-</script>
-</body>
-</html>
+        if(!
+           
